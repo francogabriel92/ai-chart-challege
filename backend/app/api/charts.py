@@ -32,8 +32,19 @@ async def answer_question(request: QuestionRequest, session=Depends(get_session)
         # Get AI response with SQL query and chart type
         ai_response = ai_service.make_query(request.question)
 
-        if not ai_response or "sql" not in ai_response:
+        # Validate AI response and SQL query
+        if (
+            not ai_response
+            or "sql" not in ai_response
+            or not ai_response["sql"]
+        ):
             raise HTTPException(status_code=400, detail="No valid query generated")
+
+        # Check for data modification instructions in the SQL query
+        forbidden_keywords = ["INSERT", "DELETE", "DROP", "UPDATE", "ALTER", "TRUNCATE"]
+        sql_upper = ai_response["sql"].upper()
+        if any(keyword in sql_upper for keyword in forbidden_keywords):
+            raise HTTPException(status_code=400, detail="Data modification queries are not allowed")
 
         if not ai_response["axis_labels"] or len(ai_response["axis_labels"]) > 2:
             raise HTTPException(
